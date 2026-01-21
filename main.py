@@ -1,13 +1,13 @@
 import os
 import json
 from datetime import datetime
-from tracemalloc import start
+#from tracemalloc import start
 from typing import List, Dict, Optional
 
 FILENAME = "tasks.json"
 VALID_STATUSES = ["todo", "in-progress", "done"]
 
-def load_tasks() -> List(Dict):
+def load_tasks() -> List[Dict]:
     """
     Load tasks from local JSON file. Return empty list if file not found or invalid.
     If old format detected, migrate it.
@@ -61,14 +61,15 @@ def load_tasks() -> List(Dict):
 
 
 
-def save_tasks(tasks):
+def save_tasks(tasks: List[Dict]) -> None:
     """
     Save task to json file.
+    Overwrite existing file.
     """
 
     try:
-        with open(FILENAME, "w") as file:
-            json.dump(tasks, file, indent = 4)
+        with open(FILENAME, "w", encoding="utf-8") as file:
+            json.dump(tasks, file, indent = 4, ensure_ascii=False)
     except Exception as e:
         print(f"Error saving task: {e}")
 
@@ -80,24 +81,73 @@ def timestamp_now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def get_next_id(tasks):
+def get_next_id(tasks: List[Dict]) -> int:
     """
     Generate unique incremental integer ID.
     """
     if not tasks:
         return 1
-    return max(task["id"] for task in tasks) + 1
+    try:
+        max_id = max(task.get("id",0) for task in tasks)
+        return max_id + 1
+    except Exception:
+        return 1
 
+def find_task_by_id(tasks: List[Dict], task_id: int) -> Optional[Dict]:
+        """
+        Return task dict with given id or None if not found.
+        """
+        for t in tasks:
+            if t.get("id") == task_id:
+                return t 
+        return None
+
+def print_task(task: Dict) -> None:
+    """
+    Print single tasks.
+    """
+    print(
+        f"[{task['id']}] {task['description']}"
+            f"({task['status']}) created: {task['createdAt']} updated: {task['updatedAt']}"
+    )
 
 #
 # Core functions
 #
 
 def add_task(tasks):
-    """Add new task(s) with description and default status."""
-    # TODO: prompt user for number of tasks and their descriptions
-    # use get_next_id() and timestamp_now()
-    pass
+    """
+    Add new task(s) with description and default status.
+    Assign id(s) and timestamps.
+    """
+    try:
+        raw = input("How many tasks do you want to add? (enter a number): ").strip()
+        n = int(raw)
+        if n <= 0:
+            print("Number must be positive.")
+            return
+    except ValueError:
+        print("Invalid number. Aborting operation.")
+        return
+
+    # Loop for adding task(s)
+    for _ in range(n):
+        desc = input("Enter task description: ").strip()
+        if not desc:
+            print("Empty description. Skipping description.")
+            continue
+        new_id = get_next_id(tasks)
+        now = timestamp_now()
+        task = {
+            "id": new_id,
+            "description": desc,
+            "status": "todo", 
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        tasks.append(task)
+        print(f"Added task id: {new_id}.")
+
 
 def show_tasks(tasks, filter_status=None):
     """Display tasks optionally filtered by status."""
