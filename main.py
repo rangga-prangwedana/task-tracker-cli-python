@@ -1,8 +1,9 @@
+from gettext import find
 import os
 import json
 from datetime import datetime
 #from tracemalloc import start
-from typing import List, Dict, Optional
+from typing import _ReturnT_nd_co, List, Dict, Optional
 
 FILENAME = "tasks.json"
 VALID_STATUSES = ["todo", "in-progress", "done"]
@@ -115,7 +116,7 @@ def print_task(task: Dict) -> None:
 # Core functions
 #
 
-def add_task(tasks):
+def add_task(tasks: List[Dict]) -> None:
     """
     Add new task(s) with description and default status.
     Assign id(s) and timestamps.
@@ -151,27 +152,99 @@ def add_task(tasks):
 
 def show_tasks(tasks, filter_status=None):
     """Display tasks optionally filtered by status."""
-    # TODO: if filter_status provided, show only tasks matching it
-    # otherwise, show all
-    pass
+    if filter_status:
+        filter_status = filter_status.strip().lower()
+        if filter_status not in VALID_STATUSES:
+            print(f"'{filter_status}' is invalid status filter. Valid: {', '.join(VALID_STATUSES)}")
+            return
+        filtered = {t for t in tasks if t.get("status") == filter_status}
+        print(f"\n=== Tasks (status: {filter_status}) ===")
+    else:
+        filtered = tasks
+        print(f"\n=== All tasks ===")
 
-def update_task(tasks):
-    """Update task description."""
-    # TODO: ask for ID, find matching task, modify description
-    # update 'updatedAt' timestamp
-    pass
+    if not filtered:
+        print("No task to show.")
+        return
 
-def delete_task(tasks):
+def update_task(tasks: List[Dict]) -> None:
+    """Update task description by id."""
+    try:
+        raw = input("Enter task id to update: ").strip()
+        task_id = int(raw)
+    except ValueError:
+        print("Invalid id.")
+        return
+    
+    task = find_task_by_id(tasks, task_id)
+    if not task:
+        print(f"No task found with id {task_id}.")
+        return
+
+    print("Current task: ")
+    print_task(task)
+    new_desc = input("Enter new description for task (leave empty to cancel): ").strip()
+    if not new_desc:
+        print("Update cancelled.")
+        return
+
+    task["description"] = new_desc
+    task["updatedAt"] = timestamp_now()
+    print(f"Task with id {task_id} updated succesfully.")
+
+def delete_task(tasks: List[Dict]) -> None:
     """Delete task by ID."""
-    # TODO: ask for ID, confirm, remove from list if found
-    pass
+    try:
+        raw = input("Enter task id to delete: ").strip()
+        task_id = int(raw)
+    except ValueError:
+        print("Invalid id.")
+        return
 
-def mark_task(tasks, new_status):
-    """Change status of a task (todo/in-progress/done)."""
-    # TODO: similar to 'mark as done' but allow all status types
-    # validate new_status input
-    pass
+    task = find_task_by_id(tasks, task_id)
+    if not task:
+        print(f"Task with id {task_id} no found.")
+        return
 
+
+    print("Task to delete: ")
+    print_task(task)
+    confirm = input("Are you sure want to DELETE this task? (y/N):").strip().lower()
+    if confirm in {"y", "yes"}:
+        tasks.remove(task)
+        print(f"Task {task_id} deleted.")
+    else:
+        print("Delete cancelled.")
+
+
+def mark_task(tasks: List[Dict], status: Optional[str] = None) -> None:
+    """
+    Mark status for tasks.
+    If the status is None, prompt for status.
+    """
+    try:
+        raw = input("Enter task id to change status: ").strip()
+        task_id = int(raw)
+    except ValueError:
+        print("Invalid id.")
+        return
+
+    task = find_task_by_id(tasks, task_id)
+    if not task:
+        print(f"No task found with id {task_id}.")
+        return
+
+    if status is None:
+        status = input(f"Enter new status ({'/'.join(VALID_STATUSES)}): ").strip().lower()
+
+    if status not in VALID_STATUSES:
+        print(f"{status} is an invalid status. Valid status options: {'/'.join(VALID_STATUSES)}")
+        return
+
+    old = task["status"]
+    task["status"] = status
+    task["updatedAt"] = timestamp_now()
+    print(f"Task {task_id} status changed: {old} --> {status}")
 
 '''
 def show_tasks(tasks):
@@ -193,55 +266,49 @@ def show_tasks(tasks):
 def main():
     tasks = load_tasks()
 
-    while True:
-        print("\n=====TASK TRACKER=====")
-        print("1. Add Task")
-        print("2. Show Tasks")
-        print("3. Show by Status (todo / in-progress / done)")
-        print("4. Update Task")
-        print("5. Mark Task as Done")
-        print("6. Delete Task")
-        print("7. Exit")
+    try:
+        while True:
+            print("\n=====TASK TRACKER=====")
+            print("1. Add Task")
+            print("2. Show Tasks")
+            print("3. Show by Status (todo / in-progress / done)")
+            print("4. Update Task")
+            print("5. Mark Task as Done")
+            print("6. Delete Task")
+            print("7. Exit")
 
-        choice = input("Enter your choice:")
+            choice = input("Enter your choice:")
 
-        if choice == "1":
-            try:
-                n_tasks = int(input("How many tasks do you want to add: "))
-                for _ in range(n_tasks):
-                    task = input("Enter task: ").strip()
-                    if task:
-                        tasks.append({"task": task, "done":False})
-                        print("Task added!")
-                    else:
-                        print("Empty task ignored.")
+            if choice == "1":
+                add_task(tasks)
                 save_tasks(tasks)
-            except ValueError:
-                print("Invalid number. Please enter an integer.")
+            elif choice == "2":
+                show_tasks(tasks)
+            elif choice == "3":
+                filt = input("Enter status to filter (todo/in-progress/done): ").strip().lower()
+                show_tasks(tasks, filt)
+            elif choice == "4":
+                update_task(tasks)
+                save_tasks(tasks)
+            elif choice == "5":
+                mark_task(tasks)
+                save_tasks(tasks)
+            elif choice == "6":
+                delete_task(tasks)
+                save_tasks(tasks)
+            elif choice == "7":
+                print("Closing application....")
+                save_tasks(tasks)
+                break
+            else:
+                print("Invalid choice. Please try again.")    
 
-        elif choice == "2":
-            show_tasks(tasks)
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt detected. Saving tasks ...")
+        save_tasks(tasks)
 
-        elif choice == "3":
-            show_tasks(tasks)
-            try:
-                task_index = int(input("\nEnter the task number to mark as done,"))
-                if 0 <= task_index < len(tasks):
-                    tasks[task_index]["done"] = True
-                    print("Task marked as done!")
-                    save_tasks(tasks)
-                else:
-                    print("Invalid task number.")
-            except ValueError:
-                print("Please enter a valid integer.")
 
-        elif choice == "4":
-            print("Exiting Task Tracker.")
-            save_tasks(tasks)
-            break
 
-        else:
-            print("Invalid choice. Please try again.")    
 
 if __name__ == "__main__":
     main()
