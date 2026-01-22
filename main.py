@@ -1,12 +1,17 @@
-from gettext import find
 import os
 import json
 from datetime import datetime
-#from tracemalloc import start
-from typing import _ReturnT_nd_co, List, Dict, Optional
+from typing import List, Dict, Optional
 
 FILENAME = "tasks.json"
 VALID_STATUSES = ["todo", "in-progress", "done"]
+
+def timestamp_now() -> str:
+    """
+    Return current timestamp as a string in ISO format.
+    """
+    return datetime.now().isoformat(timespec="seconds")
+
 
 def load_tasks() -> List[Dict]:
     """
@@ -20,7 +25,7 @@ def load_tasks() -> List[Dict]:
     try:
         with open(FILENAME, "r", encoding="utf-8") as file:
             data = json.load(file)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
+    except (json.JSONDecodeError, OSError) as e:
         print(f"WARNING! Failed to read {FILENAME}: {e}. Starting with an empty list.")
         return []
     
@@ -60,8 +65,6 @@ def load_tasks() -> List[Dict]:
     return new_list
 
 
-
-
 def save_tasks(tasks: List[Dict]) -> None:
     """
     Save task to json file.
@@ -70,16 +73,11 @@ def save_tasks(tasks: List[Dict]) -> None:
 
     try:
         with open(FILENAME, "w", encoding="utf-8") as file:
-            json.dump(tasks, file, indent = 4, ensure_ascii=False)
-    except Exception as e:
-        print(f"Error saving task: {e}")
+            json.dump(tasks, file, indent=4, ensure_ascii=False)
+    except OSError as e:
+        print(f"Error saving task to {FILENAME}: {e}")
 
 
-def timestamp_now() -> str:
-    """
-    Return current timestamp as a string in ISO format.
-    """
-    return datetime.now().isoformat(timespec="seconds")
 
 
 def get_next_id(tasks: List[Dict]) -> int:
@@ -108,8 +106,8 @@ def print_task(task: Dict) -> None:
     Print single tasks.
     """
     print(
-        f"[{task['id']}] {task['description']}"
-            f"({task['status']}) created: {task['createdAt']} updated: {task['updatedAt']}"
+        f"[{task['id']}] {task['description']} "
+        f"({task['status']})  created: {task['createdAt']}  updated: {task['updatedAt']}"
     )
 
 #
@@ -166,6 +164,10 @@ def show_tasks(tasks, filter_status=None):
     if not filtered:
         print("No task to show.")
         return
+    
+    filtered_sorted = sorted(filtered, key=lambda x: x.get("id", 0))
+    for i in filtered_sorted:
+        print_task(i)
 
 def update_task(tasks: List[Dict]) -> None:
     """Update task description by id."""
